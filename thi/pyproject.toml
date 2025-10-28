@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thi-ki-suite"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "THI KI modular workspace (metapackage)"
+dependencies = [
+  "thi-general-utils>=0.1.0",
+  "angel>=0.1.0"
+]
+
+[tool.setuptools]
+packages = []  # kein eigener Code im Root
