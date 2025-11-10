@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import overload, Union
 import numpy as np
 
+
 @overload
 def eps(value: float, *, dtype: type[np.float32]) -> np.float32: ...
 
@@ -62,4 +63,8 @@ def eps(value: int | float, *, dtype: type[np.floating] | None = None):
             exp10 = 0
     else:
         exp10 = value
+
+
+
+
     return (dtype or (np.float32 if exp10 <= 6 else np.float64))(10.0 ** (-exp10))

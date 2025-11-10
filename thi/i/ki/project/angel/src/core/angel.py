@@ -138,7 +138,7 @@ else:
     # Nutze Identität: arctan(t) = π/2 - arctan(1/t) für t >= 1
     # Dies transformiert grosse Argumente in kleine (bessere Konvergenz)
     argument_invertiert: bool = False
-    if abs(tangens_wert) > 1.0:
+    if abs(tangens_wert) >= 1.0 :
         tangens_wert = 1.0 / tangens_wert
         argument_invertiert = True
 
@@ -192,11 +192,11 @@ else:
     # Falls ursprünglich t >= 1 wurde t durch 1/t ersetzt
     # Rücktransformation: arctan(t_original) = π/2 - arctan(1/t_original)
     # Andernfalls: Ergebnis ist bereits arctan(t_original)
+
     if argument_invertiert:
         winkel_bogenmass = PI_HALBE - reihen_summe
     else:
         winkel_bogenmass = reihen_summe
-
     # ==========================================================================
     # SCHRITT 8: Einheitenumrechnung von Radiant (rad) zu Grad (°)
     #   [PDF A1: Ausgabe in Grad]
@@ -215,5 +215,5 @@ print(f"Winkel: {winkel_grad:.{genauigkeit}f}")
 
 if __name__ == "__main__":
     # Startpunkt für CLI-Aufruf
-    print("Starte Angel-Modul ...")
+    print("Angel-Modul Ausführung")
     # Hauptlogik (bereits im Skript vorhanden)

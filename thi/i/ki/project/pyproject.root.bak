@@ -7,7 +7,7 @@ name = "angel"
 version = "0.1.0"
 description = "Angel"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.26",
   "thi-general-utils>=0.1.0"
@@ -22,4 +22,5 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [project.scripts]
-angel = "core.angel:main"
+angel   = "core.angel:main"
+ufo     = "core.ufo:main"
