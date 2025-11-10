@@ -1,3 +1,5 @@
-from core.ufo import main
+
 if __name__ == "__main__":
-    main()
+    import core.ufo
+    exit(0)
+

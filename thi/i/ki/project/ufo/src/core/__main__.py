@@ -1,3 +1,2 @@
-from .ufo import main
-if __name__ == "__main__":
-    main()
+# erlaubt: python -m core
+import core.ufo_main  # noqa: F401  # führt das Skript aus

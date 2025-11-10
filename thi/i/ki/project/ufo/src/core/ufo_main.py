@@ -1,4 +1,4 @@
-# thi/i/ki/project/ufo/src/core/ufo.py
+# thi/i/ki/project/ufo/src/core/ufo_main.py
 # Vorgabe wie angel: keine Funktionsdefinitionen
 from util.evaluation import read_input, eps
 
