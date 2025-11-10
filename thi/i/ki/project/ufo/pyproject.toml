@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Tom Werner" }]
 dependencies = [
-    "numpy>=1.26",
-    "thi-general-utils>=0.1.0",
-    "angel",
+  "numpy>=1.26",
+  "thi-general-utils>=0.1.0",
+  "thi-angel>=0.1.0",
 ]
 
 [project.scripts]
