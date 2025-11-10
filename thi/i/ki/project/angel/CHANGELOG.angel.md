@@ -14,7 +14,7 @@ Kategorien:
 
 ## [3.03.000.01] – 2025-11-10
 ### Added
-- Öffentliche Funktions-API `angel(x1: float, y1: float, x2: float, y2: float, genauigkeit: int = 14) -> float`
+- Öffentliche Functions-API `angel(x1: float, y1: float, x2: float, y2: float, genauigkeit: int = 14) -> float`
 - Konfigurierbare Ausgabepräzision über `genauigkeit` (Rundung im Return)
 
 ### Changed
@@ -22,7 +22,7 @@ Kategorien:
   - `|t| > 1` ⇒ `arctan(t) = π/2 − arctan(1/t)`
   - `tan(π/8) ≤ t ≤ 1` ⇒ `arctan(t) = π/4 + arctan((t−1)/(t+1))`
 - Eingabevalidierung mit `ValueError` bei `x2 < x1` oder `y2 < y1`
-- CLI-Ausgabe standardisiert auf 6 Nachkommastellen
+- CLI-Ausgabe standardisiert auf 14 Nachkommastellen
 
 ### Fixed
 - Saubere Behandlung der Sonderfälle:

@@ -70,16 +70,16 @@ def angel(
             tangens_wert = 1.0 / tangens_wert
             argument_invertiert = True
 
-        # π/4-Argumentreduktion zur Beschleunigung der Reihe nahe t≈1.
+        # π/4-Argumentreduktion zur Beschleunigung der Reihe nahe t ≈ 1.
         # Schwelle: schwellwert = tan(π/8) = √2 − 1. Für schwellwert ≤ t ≤ 1 gilt
         # arctan(t) = π/4 + arctan((t−1)/(t+1)), wobei |(t−1)/(t+1)| ≤ √2 − 1 ⇒ schnelle Konvergenz.
         elif schwellwert <= tangens_wert <= 1.0:
             # π/4 als Basis-Offset für die spätere Rücktransformation
             basis_offset = PI_HALBE / 2
-            # u = tan(φ−π/4); stabil (t+1 ≥ 1+schwellwert) und Konvergenzfördernd
+            # u = tan(φ−π/4); stabil (t+1 ≥ 1+schwellwert) und Konvergenz fördernd
             tangens_wert = (tangens_wert - 1.0) / (tangens_wert + 1.0)
 
-        # Reihe: arctan(t) = Σ (-1)^k * t^(2k+1) / (2k+1)
+        # Reihe: arctan(t) = Σ (-1)^k * t ^ (2k + 1) / (2k + 1)
         reihen_summe: float = 0.0
         aktueller_summand: float = tangens_wert
         reihen_index: int = 0

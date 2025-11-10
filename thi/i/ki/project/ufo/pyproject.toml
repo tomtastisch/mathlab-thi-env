@@ -16,10 +16,11 @@ dependencies = [
 ]
 
 [project.scripts]
-ufo = "cli:main"
+ufo = "core.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+py-modules = ["cli"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
