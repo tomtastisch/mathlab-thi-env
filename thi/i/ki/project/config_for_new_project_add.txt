@@ -1,0 +1,106 @@
+# ==== Konfiguration ====
+NAME="ufo"  # nur hier anpassen
+REPO="/Users/tomwerner/Library/Mobile Documents/com~apple~CloudDocs/Projects/PyCharmProjects/mathlab-thi-env"
+ROOT="$REPO/thi/i/ki/project/$NAME"
+DATE="$(date +%F)"
+TITLE="$(printf '%s' "$NAME" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+
+# ==== Neu aufsetzen ====
+rm -rf "$ROOT"
+mkdir -p "$ROOT/src/core" "$ROOT/pa"
+
+# Paketmarker
+printf '# package marker\n' > "$ROOT/src/__init__.py"
+printf '# package marker\n' > "$ROOT/src/core/__init__.py"
+
+# core/<name>.py – wie angel: keine def, Startblock + util-Test
+cat > "$ROOT/src/core/$NAME.py" <<PY
+# thi/i/ki/project/$NAME/src/core/$NAME.py
+# Vorgabe wie angel: keine Funktionsdefinitionen
+from util.evaluation import read_input, eps
+
+eingabe: float = read_input("test eingabe (int): ", int)
+print(eingabe)
+
+# Platzhalter-Ausgabe für den Start
+if __name__ == "__main__":
+    # Startpunkt für CLI-Aufruf
+    print("$TITLE-Modul Ausführung")
+    # Hauptlogik (bereits im Skript vorhanden)
+PY
+
+# Optionaler CLI-Wrapper (für Konsolenkommando $NAME)
+cat > "$ROOT/src/cli.py" <<'PY'
+def main() -> int:
+    # Hier kann später Projekt-CLI-Logik rein
+    # Der Algorithmus läuft weiterhin in src/core/<name>.py
+    print("CLI gestartet")
+    return 0
+PY
+
+# README leer
+: > "$ROOT/README.md"
+
+# CHANGELOG.<name>.md
+cat > "$ROOT/CHANGELOG.$NAME.md" <<EOF
+# CHANGELOG – ${TITLE}-Modul
+## [0.01.000.01] – ${DATE}
+### Added
+- Projektinitialisierung (src/core, CLI, Packaging, Ordner pa/)
+EOF
+
+# pa/AUFGABEN.md (Platzhalter)
+cat > "$ROOT/pa/AUFGABEN.md" <<EOF
+# Aufgabenstellungen – ${TITLE}
+Hier manuell Aufgaben, PDFs oder Hinweise ablegen.
+Strukturvorschlag: YYYY-MM-DD_<kurzbeschreibung>.md
+EOF
+
+# pyproject.toml (angel-Layout; Utils via .pth, keine harte Abhängigkeit)
+cat > "$ROOT/pyproject.toml" <<TOML
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "$NAME"
+version = "0.1.0"
+description = "$NAME – CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Tom Werner" }]
+
+[project.scripts]
+$NAME = "cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["core*"]
+TOML
+
+# ==== venv + Utils-Pfad wie bei angel ====
+python3 -m venv "$ROOT/.venv"
+source "$ROOT/.venv/bin/activate"
+python -m pip install -U pip setuptools wheel
+
+# Utils per .pth verfügbar machen (import util.*), ohne deren Struktur zu ändern
+SITE=$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+printf "%s\n" "$REPO/thi/i/ki" > "$SITE/ki-dev.pth"
+
+# Paket installierbar machen
+pip install -e "$ROOT"
+
+# ==== Tests (eine Ebene über dem Projektordner ausführen) ====
+cd "$REPO/thi/i/ki/project"
+
+# Direkt wie bei angel: Datei ausführen
+python3 "$NAME/src/core/$NAME.py"
+
+# Optional: Konsolenkommando (CLI-Wrapper)
+$NAME
+
+# Strukturcheck
+echo "== Struktur ==" && find "$ROOT" -maxdepth 2 -print
