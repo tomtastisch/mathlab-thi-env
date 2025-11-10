@@ -12,6 +12,36 @@ Kategorien:
 
 ---
 
+## [3.03.000.01] – 2025-11-10
+### Added
+- Öffentliche Funktions-API `angel(x1: float, y1: float, x2: float, y2: float, genauigkeit: int = 14) -> float`
+- Konfigurierbare Ausgabepräzision über `genauigkeit` (Rundung im Return)
+
+### Changed
+- Argumentreduktion für schnelle Konvergenz:
+  - `|t| > 1` ⇒ `arctan(t) = π/2 − arctan(1/t)`
+  - `tan(π/8) ≤ t ≤ 1` ⇒ `arctan(t) = π/4 + arctan((t−1)/(t+1))`
+- Eingabevalidierung mit `ValueError` bei `x2 < x1` oder `y2 < y1`
+- CLI-Ausgabe standardisiert auf 6 Nachkommastellen
+
+### Fixed
+- Saubere Behandlung der Sonderfälle:
+  - `Δx = 0 ∧ Δy > 0` ⇒ `90.0`
+  - `Δx = Δy = 0` ⇒ `0.0`
+- Stabilere Abbruchbedingung mittels `eps(genauigkeit)` aus Utils
+
+### Refactor
+- Rekurrenz für Reihen-Summanden statt wiederholter Potenzbildung
+- Trennung von Berechnung (Funktion) und I/O (CLI-Block)
+
+### Docs
+- Docstring überarbeitet nach PEP 257, Hinweis auf `math.atan2` ergänzt
+
+### Packaging
+- Vorbereitung für Installation analog `thi-general-utils`  
+  Empfehlung: Distributionsname `thi-angel` (Import weiterhin `from angel import angel`)  
+- Optionale Deklaration als Abhängigkeit in `ufo` über `[project.dependencies]`
+
 ## [3.02.001.01] – 2025-10-28
 ### Changed
 - Anpassung an `thi-general-utils v1.01.000.01` (argparse-basierte Eingabeverarbeitung)
