@@ -1,11 +1,14 @@
-# src/core/ufo_autopilot.py
 from __future__ import annotations
+
+from dataclasses import replace
 from math import hypot, factorial
+from typing import overload, NamedTuple
+
 from core.angel import angel as _angel
-from util.cfg.simulation import AutopilotCfg, DEFAULT_CFG, NavOps as Nav, UfoSimLike
+from .cfg import AutopilotCfg, DEFAULT_CFG, UfoSimLike
+from .profile.h_profil import HProfil as nav
 
-
-# ================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ==================
+# ====================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ======================
 
 def distance(x1: float, y1: float, x2: float, y2: float) -> float:
     """
@@ -249,57 +252,72 @@ def fac(n: int = 1, m: int = 1) -> int:
     # Vorzeichen separat über (-1)^k.
     return (-1) ** k * (factorial(b) // factorial(a - 1))
 
-
-
-
-
 # ── Eigentlicher Autopilot  Nachfolgend ─────────────────────────────────────────────────────────────────
-def fly_to(sim: UfoSimLike, x: float, y: float, z: float, cfg: AutopilotCfg | None = None) -> None:
-    cfg = DEFAULT_CFG if cfg is None else cfg
-    takeoff(sim, z, cfg)
-    cruise(sim, x, y, cfg)
-    landing(sim, cfg)
 
-def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg | None = None) -> None:
-    cfg = DEFAULT_CFG if cfg is None else cfg
+@overload
+def takeoff(sim: UfoSimLike, z: float) -> None: ...
+
+@overload
+def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg) -> None: ...
+
+def takeoff(
+        sim: UfoSimLike,
+        z: float,
+        cfg: AutopilotCfg | None = None
+) -> None:
+
+    cfg = replace(DEFAULT_CFG) if cfg is None else cfg
+
     sim.set_i(90)
     slow_at = max(cfg.stop_z, max(0.8 * z, z - cfg.slow_z_fallback))
     stop_at = cfg.stop_z
-    Nav.profiled_approach(
+
+    nav.schrittweise_bis(
         sim,
-        remainder=lambda: max(z - sim.get_z(), 0.0),
-        slow_at=slow_at,
-        stop_at=stop_at,
-        accel_dv=cfg.v_up,
-        slow_dv=cfg.v_up_to_slow,
-        cfg=cfg,
+        lambda: max(z - sim.get_z(), 0.0),
+        slow_at,
+        stop_at,
+        cfg.v_up,
+        cfg.v_up_to_slow,
+        cfg,
     )
     sim.set_i(0)
 
 def cruise(sim: UfoSimLike, x: float, y: float, cfg: AutopilotCfg | None = None) -> None:
     cfg = DEFAULT_CFG if cfg is None else cfg
     sx, sy = sim.get_x(), sim.get_y()
-    sim.set_d(Nav.dir_to_int(angle(sx, sy, x, y)))
+    sim.set_d(nav.richtung_als_int(angle(sx, sy, x, y)))
     target_sum = sim.get_dist() + distance(sx, sy, x, y)
-    Nav.profiled_approach(
+    nav.schrittweise_bis(
         sim,
-        remainder=lambda: max(target_sum - sim.get_dist(), 0.0),
-        slow_at=cfg.slow_h,
-        stop_at=cfg.stop_h,
-        accel_dv=cfg.v_cruise,
-        slow_dv=cfg.v_cruise_to_slow,
-        cfg=cfg,
+        lambda: max(target_sum - sim.get_dist(), 0.0),
+        cfg.slow_h,
+        cfg.stop_h,
+        cfg.v_cruise,
+        cfg.v_cruise_to_slow,
+        cfg,
     )
 
 def landing(sim: UfoSimLike, cfg: AutopilotCfg | None = None) -> None:
     cfg = DEFAULT_CFG if cfg is None else cfg
     sim.set_i(-90)
-    Nav.profiled_approach(
+    nav.schrittweise_bis(
         sim,
-        remainder=lambda: max(sim.get_z() - 0.0, 0.0),
-        slow_at=cfg.landing_slow_z,
-        stop_at=0.0,
-        accel_dv=cfg.v_up,
-        slow_dv=cfg.v_up_to_slow,
-        cfg=cfg,
+        lambda: max(sim.get_z() - 0.0, 0.0),
+        cfg.landing_slow_z,
+        0.0,
+        cfg.v_up,
+        cfg.v_up_to_slow,
+        cfg,
     )
+
+def fly_to(sim: UfoSimLike, x: float, y: float, z: float, cfg: AutopilotCfg | None = None) -> None:
+    cfg = DEFAULT_CFG if cfg is None else cfg
+    takeoff(sim, z, cfg)
+    cruise(sim, x, y, cfg)
+    landing(sim, cfg)
+
+
+
+
+
