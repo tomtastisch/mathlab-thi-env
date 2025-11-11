@@ -5,7 +5,10 @@ import time
 from typing import Callable
 from ..cfg import AutopilotCfg, UfoSimLike
 
-from dtypes import ProgressCheck
+try:
+    from system.dtypes import ProgressCheck
+except ModuleNotFoundError:
+    from dtypes import ProgressCheck
 
 """
 Profil-Operationen für die UFO‑Simulation
@@ -18,7 +21,7 @@ Voraussetzungen
 Öffentliche API
 - HProfil.warte_bis(bedingung, abfrage_s)
 - HProfil.richtung_als_int(grad)
-- HProfil.profilierte_annäherung(sim, rest, schwelle_langsam, schwelle_stop, dv_beschleunigen, dv_abbremsen, konfig)
+- HProfil._profil_schritt_bis(sim, rest, schwelle_langsam, schwelle_stop, dv_beschleunigen, dv_abbremsen, konfig)
 """
 
 class HProfil:

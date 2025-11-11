@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+from util.geometry import GeometryUtil
+from dataclasses import replace
+from math import hypot, factorial
+from typing import overload, final
+
+from core.angel import angel as _angel
+from .ufosim3_2_9q import UfoSim
+from .cfg import AutopilotCfg, DEFAULT_CFG, UfoSimLike
+from .profile.h_profil import HProfil as Nav
+
 """
 UFO‑Autopilot: Geometrie, Profilsteuerung und High‑Level‑Manöver.
 
@@ -13,14 +23,6 @@ Konventionen
 - Winkel [°], Wege [m], Zeiten [s], Geschwindigkeiten [km/h] (Sim‑Signale)
 - Funktionen deterministisch, ohne Seiteneffekte
 """
-
-from dataclasses import replace
-from math import hypot, factorial
-from typing import overload
-
-from core.angel import angel as _angel
-from .cfg import AutopilotCfg, DEFAULT_CFG, UfoSimLike
-from .profile.h_profil import HProfil as Nav
 
 # ====================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ======================
 
@@ -176,49 +178,180 @@ def _set_neigung(
     return wert
 
 # ====================== AUTOPILOT ANGEHÖRIGE STANDARD FUNKTIONEN =====================
-
-@overload
-def takeoff(sim: UfoSimLike, z: float) -> None: ...
-@overload
-def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg) -> None: ...
-
-def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg | None = None) -> None:
+@final
+class _Autopilot:
     """
-    Abheben: Steigflug bis Zielhöhe `z` mit zweistufigem Profil.
-
-    Ablauf:
-        Inklination setzen
-        → kinematischen Umschaltpunkt bestimmen
-        → schrittweise bis `z` mit Langsam-/Stop‑Fenstern
-        → Inklination neutralisieren.
-
-    Args:
-        sim: Simulator.
-        z: Zielhöhe [m].
-        cfg: Konfiguration.
+    Autopilot als Orchestrierungsschicht zur Steuerung des Ufos.
+    Nutzt ZProfil/HProfil und die Konfigurationsfiles für
+        z → hoch / runter
+        h → Bewegung.
     """
-    conf: AutopilotCfg = replace(DEFAULT_CFG) if cfg is None else cfg
 
-    rest: float = max(z - sim.get_z(), 0.0)
-    if rest <= conf.stop_z:
-        _set_neigung(sim, conf, conf.neigung_neutral_deg)
+    @staticmethod
+    def _bremsberechnung(
+            conf: AutopilotCfg,
+            rest:float,
+            use_heuristic: bool = False
+    ) -> tuple[float, float]:
+        """
+        Ermittelt (slow_at, stop_at) für Reststrecke `rest`.
+        Kinematik, sonst heuristischer Fallback.
+        Garantien: stop_at ≤ slow_at ≤ rest; stop_at ≥ 0.
+        """
+        def _fallback() -> tuple[float, float]:
+            # Heuristik-Fallback ohne Kinematik:
+            # Beginne die Langsamphase bei 80 % der Reststrecke.
+            # Begründung: ≥20 % Reserve für Feinanflug + Stop-Fenster verhindert Überschwingen
+            # bei diskreten Geschwindigkeitsstufen; ersetzt wird dies durch eine kinematische
+            # Berechnung, sobald v0/v1/a vorliegen.
 
-    else:
-        _set_neigung(sim, conf, conf.neigung_steigen_deg)
+            slow: float = max(conf.stop_z, max(0.8 * rest, rest - conf.slow_z_fallback))
+            slow = min(rest, slow)
 
-        # Heuristik-Fallback ohne Kinematik:
-        # Beginne die Langsamphase bei 80 % der Reststrecke.
-        # Begründung: ≥20 % Reserve für Feinanflug + Stop-Fenster verhindert Überschwingen
-        # bei diskreten Geschwindigkeitsstufen; ersetzt wird dies durch eine kinematische
-        # Berechnung, sobald v0/v1/a vorliegen.
-        slow_at: float = max(conf.stop_z, max(0.8 * rest, rest - conf.slow_z_fallback))
-        stop_at: float = conf.stop_z
+            stop: float = max(0.0, conf.stop_z)
+            return slow, stop
+
+        slow_at: float
+        stop_at: float
+
+        kin: tuple[float, float] | None = None
+
+        if use_heuristic:
+            try:
+                slow_at: float = GeometryUtil.bremsbeginn(
+                    s_total=rest,
+                    stop_window=conf.stop_z,
+                    v0=conf.v_cruise_kmh,  # ggf. an Cfg-Namen anpassen
+                    v1=conf.v_slow_kmh,     # Zielgeschwindigkeit der Langsamphase
+                    a=conf.a_slow_mps2,     # konstante negative Beschleunigung
+                    v_unit="kmh",
+                )
+                stop_at: float = GeometryUtil.stoppen_vertikal(conf.stop_z)
+
+                kin = slow_at, stop_at
+            except ValueError:
+                pass # Fallback durch Funktionsaufruf -> _fallback()
+
+        return kin if kin is not None else _fallback()
+
+    @overload
+    @staticmethod
+    def takeoff(sim: UfoSimLike, z: float) -> None: ...
+
+    @overload
+    @staticmethod
+    def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg) -> None: ...
+
+    @staticmethod
+    def takeoff(
+            sim: UfoSimLike,
+            z: float,
+            cfg: AutopilotCfg | None = None,
+            use_heuristic: bool = False
+    ) -> None:
+        """
+        Abheben: Steigflug bis Zielhöhe `z` mit zweistufigem Profil.
+
+        Ablauf:
+            Inklination setzen
+            → kinematischen Umschaltpunkt bestimmen
+            → schrittweise bis `z` mit Langsam-/Stop‑Fenstern
+            → Inklination neutralisieren.
+
+        Args:
+            sim: Simulator.
+            z: Zielhöhe [m].
+            cfg: Konfiguration.
+            use_heuristic: Heuristik-Berechnung als Möglichkeit für realitätsnahe Berechnungen
+        """
+        conf: AutopilotCfg = replace(DEFAULT_CFG) if cfg is None else cfg
+
+        rest: float = max(z - sim.get_z(), 0.0)
+        if rest <= conf.stop_z:
+            _set_neigung(sim, conf, conf.neigung_neutral_deg)
+
+        else:
+            _set_neigung(sim, conf, conf.neigung_steigen_deg)
+
+            slow_at, stop_at = _Autopilot._bremsberechnung(
+                conf=conf,
+                rest=rest,
+                use_heuristic=use_heuristic
+            )
+
+            Nav.schrittweise_bis(
+                sim,
+                lambda: max(z - sim.get_z(), 0.0),
+                slow_at,
+                stop_at,
+                conf.v_up,
+                conf.v_up_to_slow,
+                conf,
+            )
+
+            _set_neigung(sim, conf, conf.neigung_neutral_deg)
+
+    @staticmethod
+    def cruise(
+        sim: UfoSimLike,
+        x: float,
+        y: float,
+        cfg: AutopilotCfg | None = None,
+    ) -> None:
+        """
+        Streckenflug zu (x, y) mit zweistufiger Geschwindigkeitsführung.
+
+        Ablauf:
+            Kurs aus Absolutwinkel setzen → Ziel‑Gesamtdistanz bestimmen → schrittweise bis Ziel.
+
+        Args:
+            sim: Simulator.
+            x: Ziel‑x [m].
+            y: Ziel‑y [m].
+            cfg: Konfiguration.
+        """
+        conf = replace(DEFAULT_CFG) if cfg is None else cfg
+
+        sx = sim.get_x()
+        sy = sim.get_y()
+
+        a: float = angle(sx, sy, x, y)
+        grad: int = Nav.richtung_als_int(a)
+        sim.set_d(grad)
+
+        distanz: float = sim.get_dist() + distance(sx, sy, x, y)
 
         Nav.schrittweise_bis(
             sim,
-            lambda: max(z - sim.get_z(), 0.0),
-            slow_at,
-            stop_at,
+            lambda: max(distanz - sim.get_dist(), 0.0),
+            conf.slow_h,
+            conf.stop_h,
+            conf.v_cruise,
+            conf.v_cruise_to_slow,
+            conf,
+        )
+
+    @staticmethod
+    def landing(
+            sim: UfoSimLike,
+            cfg: AutopilotCfg | None = None
+    ) -> None:
+        """
+        Landen: Sinkflug auf z = 0 mit zweistufigem Profil.
+
+        Args:
+            sim: Simulator.
+            cfg: Konfiguration.
+        """
+        conf = replace(DEFAULT_CFG) if cfg is None else cfg
+
+        _set_neigung(sim, conf, conf.neigung_sinken_deg)
+
+        Nav.schrittweise_bis(
+            sim,
+            lambda: max(sim.get_z() - 0.0, 0.0),
+            conf.landing_slow_z,
+            0.0,
             conf.v_up,
             conf.v_up_to_slow,
             conf,
@@ -226,77 +359,10 @@ def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg | None = None) -> None:
 
         _set_neigung(sim, conf, conf.neigung_neutral_deg)
 
-
-def cruise(
-    sim: UfoSimLike,
-    x: float,
-    y: float,
-    cfg: AutopilotCfg | None = None,
-) -> None:
-    """
-    Streckenflug zu (x, y) mit zweistufiger Geschwindigkeitsführung.
-
-    Ablauf:
-        Kurs aus Absolutwinkel setzen → Ziel‑Gesamtdistanz bestimmen → schrittweise bis Ziel.
-
-    Args:
-        sim: Simulator.
-        x: Ziel‑x [m].
-        y: Ziel‑y [m].
-        cfg: Konfiguration.
-    """
-    conf = replace(DEFAULT_CFG) if cfg is None else cfg
-
-    sx = sim.get_x()
-    sy = sim.get_y()
-
-    a: float = angle(sx, sy, x, y)
-    grad: int = Nav.richtung_als_int(a)
-    sim.set_kurs(grad)
-
-    distanz: float = sim.get_dist() + distance(sx, sy, x, y)
-
-    Nav.schrittweise_bis(
-        sim,
-        lambda: max(distanz - sim.get_dist(), 0.0),
-        conf.slow_h,
-        conf.stop_h,
-        conf.v_cruise,
-        conf.v_cruise_to_slow,
-        conf,
-    )
-
-
-def landing(
-        sim: UfoSimLike,
-        cfg: AutopilotCfg | None = None
-) -> None:
-    """
-    Landen: Sinkflug auf z = 0 mit zweistufigem Profil.
-
-    Args:
-        sim: Simulator.
-        cfg: Konfiguration.
-    """
-    conf = replace(DEFAULT_CFG) if cfg is None else cfg
-
-    _set_neigung(sim, conf, conf.neigung_sinken_deg)
-
-    Nav.schrittweise_bis(
-        sim,
-        lambda: max(sim.get_z() - 0.0, 0.0),
-        conf.landing_slow_z,
-        0.0,
-        conf.v_up,
-        conf.v_up_to_slow,
-        conf,
-    )
-
-    _set_neigung(sim, conf, conf.neigung_neutral_deg)
-
+# ====================== EXPORTE ZUR SICHEREN TESTABDECKUNG =====================
 
 def fly_to(
-    sim: UfoSimLike,
+    sim: UfoSimLike | UfoSim,
     x: float,
     y: float,
     z: float,
@@ -314,6 +380,15 @@ def fly_to(
     """
     conf = replace(DEFAULT_CFG) if cfg is None else cfg
 
-    takeoff(sim, z, conf)
-    cruise(sim, x, y, conf)
-    landing(sim, conf)
+    _Autopilot.takeoff(sim, z, conf)
+    _Autopilot.cruise(sim, x, y, conf)
+    _Autopilot.landing(sim, conf)
+
+def takeoff(sim, z: float) -> None:
+    _Autopilot.takeoff(sim, z, DEFAULT_CFG)
+
+def cruise(sim, x: float, y: float) -> None:
+    _Autopilot.cruise(sim, x, y, DEFAULT_CFG)
+
+def landing(sim) -> None:
+    _Autopilot.landing(sim, DEFAULT_CFG)

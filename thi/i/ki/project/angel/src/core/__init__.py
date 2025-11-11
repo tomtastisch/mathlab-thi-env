@@ -1,1 +1,0 @@
-# Initialisierungspaket für Importstruktur
