@@ -25,7 +25,8 @@ from .profile.h_profil import HProfil as Nav
 # ====================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ======================
 
 def distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Euklidische Distanz |P1P2| im xy‑Plan.
+    """
+    Euklidische Distanz |P1P2| im xy‑Plan.
 
     Args:
         x1: x‑Koordinate von P1.
@@ -37,9 +38,9 @@ def distance(x1: float, y1: float, x2: float, y2: float) -> float:
     """
     return hypot(x2 - x1, y2 - y1)
 
-
 def angle_q1(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Basiswinkel φ ∈ [0°, 90°] für |Δx|, |Δy| via `core.angel.angel`.
+    """
+    Basiswinkel φ ∈ [0°, 90°] für |Δx|, |Δy| via `core.angel.angel`.
 
     Args:
         x1: x‑Koordinate von P1.
@@ -55,7 +56,8 @@ def angle_q1(x1: float, y1: float, x2: float, y2: float) -> float:
 
 
 def angle(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Absolutwinkel φ ∈ [0°, 360°) von P1→P2 relativ +x.
+    """
+    Absolutwinkel φ ∈ [0°, 360°) von P1→P2 relativ +x.
 
     Verfahren:
         φ_q1 = angle_q1(|Δx|, |Δy|); Quadrant aus Vorzeichen von Δx, Δy;
@@ -73,7 +75,7 @@ def angle(x1: float, y1: float, x2: float, y2: float) -> float:
     dy = y2 - y1
 
     circle = 360.0
-    phi = angle_q1(0.0, 0.0, abs(dx), abs(dy))
+    phi = _angel(0.0, 0.0, abs(dx), abs(dy))
 
     # Quadrant bestimmen und globalen Winkel ableiten
     sx, sy = (dx >= 0.0), (dy >= 0.0)
@@ -82,7 +84,8 @@ def angle(x1: float, y1: float, x2: float, y2: float) -> float:
 
 
 def flight_distance(x1: float, y1: float, x2: float, y2: float, z: float) -> float:
-    """Gesamtstrecke: horizontale Distanz + doppelter Höhenweg.
+    """
+    Gesamtstrecke: horizontale Distanz + doppelter Höhenweg.
 
     Definition: hypot(Δx, Δy) + 2·|z|.
 
@@ -99,7 +102,8 @@ def flight_distance(x1: float, y1: float, x2: float, y2: float, z: float) -> flo
 
 
 def format_flight_data(sim: UfoSimLike, w: int = 10) -> str:
-    """Formatiert eine Telemetrie‑Zeile.
+    """
+    Formatiert eine Telemetrie‑Zeile.
 
     Format: "{t:>5.1f} s: {x:>w.1f} {y:>w.1f} {z:>w.1f}".
 
@@ -157,7 +161,6 @@ def _begrenze_neigung_deg(cfg: AutopilotCfg, deg: int) -> int:
 
     """
     return max(cfg.neigung_sinken_deg, min(cfg.neigung_steigen_deg, deg))
-
 
 def _set_neigung(
         sim: UfoSimLike,
@@ -299,7 +302,8 @@ def fly_to(
     z: float,
     cfg: AutopilotCfg | None = None,
 ) -> None:
-    """Kombiniertes Manöver: takeoff → cruise → landing.
+    """
+    Kombiniertes Manöver: takeoff → cruise → landing.
 
     Args:
         sim: Simulator.
