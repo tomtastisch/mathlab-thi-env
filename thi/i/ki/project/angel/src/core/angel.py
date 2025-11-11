@@ -1,8 +1,8 @@
-# thi/i/ki/project/angel/src/core/angel.py
 import math
 import sys
+import numpy as np
 
-from util.evaluation import read_input, eps as eval_eps
+from util.evaluation import read_input, eps as _eps
 
 PI = math.pi
 PI_HALBE = PI / 2
@@ -38,7 +38,7 @@ def angel(
         - Für Produktion wäre math.atan2(Δy, Δx) ausreichend; hier bewusst nicht genutzt.
     """
 
-    eps: float = eval_eps(genauigkeit)
+    eps: float = float(_eps(genauigkeit, dtype=np.float64))
 
     # Eingabevalidierung
     if x2 < x1 or y2 < y1:

@@ -23,7 +23,10 @@ Dieses Modul exportiert ausschließlich die für Konsumenten vorgesehenen
 Funktionen. Interne Hilfsfunktionen bleiben verborgen.
 """
 
-from .input_utils import read_input  # falls vorhanden
-from .type_utils import eps          # falls vorhanden
+from .input_utils import read_input
+from .type_utils import TypeUtils
+
+# Paket-API: bereitstellen eines funktionsartigen Aliases
+eps = TypeUtils.eps
 
 __all__ = ["read_input", "eps"]

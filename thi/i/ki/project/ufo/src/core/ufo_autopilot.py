@@ -5,7 +5,8 @@ from core.angel import angel as _angel
 from util.cfg.simulation import AutopilotCfg, DEFAULT_CFG, NavOps as Nav, UfoSimLike
 
 
-# ============ KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ============
+# ================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ==================
+
 def distance(x1: float, y1: float, x2: float, y2: float) -> float:
     """
     Euklidische Distanz zwischen zwei Punkten P1(x1, y1) und P2(x2, y2).
@@ -102,6 +103,26 @@ def angle(x1: float, y1: float, x2: float, y2: float) -> float:
 
     # Quadrant aus Vorzeichenpaar (sx, sy) bestimmen und Basiswinkel setzen
     phi = angle_q1(0.0, 0.0, abs(delta_x), abs(delta_y))
+
+    # Quadranten logik zur Ableitung des Absolutwinkels aus φ_q1
+    # Zweck:
+    #   Aus den Vorzeichen von Δx und Δy wird der globale Winkel φ ∈ [0°, 360°)
+    #   aus dem Basiswinkel φ_q1 ∈ [0°, 90°] hergeleitet.
+    # Eingaben:
+    #   delta_x, delta_y  – Differenzen der Koordinaten
+    #   phi               – φ_q1 aus angle_q1 (1. Quadrant)
+    #   circle            – Kreisumfang in Grad (360.0)
+    # Verfahren:
+    #   1) Vorzeichen bestimmen: sx := (Δx ≥ 0), sy := (Δy ≥ 0)
+    #   2) Basiswinkel base setzen:
+    #        Δx < 0            → +180°  (linke Halbebene)
+    #        Δx ≥ 0 ∧ Δy < 0   → +360°  (4. Quadrant Wrap)
+    #        sonst              → +0°
+    #      Formal: base = 180°*(¬sx) + 360°*(sx ∧ ¬sy)
+    #   3) Korrekturrichtung für φ:
+    #        sx == sy  → +φ    (Quadranten 1 und 3)
+    #        sonst     → −φ    (Quadranten 2 und 4)
+    #   4) Normierung: (base ± φ) mod 360° ergibt φ ∈ [0°, 360°)
 
     sx, sy = (delta_x >= 0.0), (delta_y >= 0.0)
     base = (circle / 2) * (not sx) + circle * (sx and not sy)
