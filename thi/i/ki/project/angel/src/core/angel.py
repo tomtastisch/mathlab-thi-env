@@ -99,8 +99,8 @@ def angel(
 
         winkel_bogenmass = (
             PI_HALBE - (basis_offset + reihen_summe)
-            if argument_invertiert
-            else (basis_offset + reihen_summe)
+                if argument_invertiert
+                else (basis_offset + reihen_summe)
         )
 
         # Gradmaß
