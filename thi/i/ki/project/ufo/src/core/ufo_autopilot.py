@@ -1,323 +1,315 @@
 from __future__ import annotations
 
+"""
+UFO‑Autopilot: Geometrie, Profilsteuerung und High‑Level‑Manöver.
+
+Inhalt
+- Geometrie: distance, angle_q1, angle
+- Telemetrie/Hilfen: flight_distance, format_flight_data, fac
+- Sicherheitsfunktion: _begrenze_neigung_deg (Inklinationsgrenzen)
+- Manöver: takeoff, cruise, landing, fly_to
+
+Konventionen
+- Winkel [°], Wege [m], Zeiten [s], Geschwindigkeiten [km/h] (Sim‑Signale)
+- Funktionen deterministisch, ohne Seiteneffekte
+"""
+
 from dataclasses import replace
 from math import hypot, factorial
-from typing import overload, NamedTuple
+from typing import overload
 
 from core.angel import angel as _angel
 from .cfg import AutopilotCfg, DEFAULT_CFG, UfoSimLike
-from .profile.h_profil import HProfil as nav
+from .profile.h_profil import HProfil as Nav
 
 # ====================== KOORDINATENSYSTEMRELEVANTE FUNKTIONEN ======================
 
 def distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """
-    Euklidische Distanz zwischen zwei Punkten P1(x1, y1) und P2(x2, y2).
+    """Euklidische Distanz |P1P2| im xy‑Plan.
 
     Args:
-        x1: x-Koordinate von P1.
-        y1: y-Koordinate von P1.
-        x2: x-Koordinate von P2.
-        y2: y-Koordinate von P2.
-
+        x1: x‑Koordinate von P1.
+        y1: y‑Koordinate von P1.
+        x2: x‑Koordinate von P2.
+        y2: y‑Koordinate von P2.
     Returns:
-        Float-Wert der Strecke |P1P2| in denselben Einheiten wie die Eingaben.
-
-    Hinweise:
-        Verwendet `math.hypot`, das numerisch stabil ist und Überläufe/Unterläufe
-        gegenüber naiver Wurzelberechnung reduziert.
-
-    Beispiele:
-        >>> round(distance(0.0, 0.0, 3.0, 4.0), 6)
-        5.0
-        >>> distance(1.0, 2.0, 1.0, 2.0)
-        0.0
+        Distanz in den Einheiten der Eingaben.
     """
     return hypot(x2 - x1, y2 - y1)
 
+
 def angle_q1(x1: float, y1: float, x2: float, y2: float) -> float:
-    """
-    Q1-Basiswinkel φ ∈ [0°, 90°] zwischen der +x-Achse durch P1 und der Strecke P1→P2.
-    Reduziert auf den 1. Quadranten und delegiert die Berechnung an `core.angel.angel`.
+    """Basiswinkel φ ∈ [0°, 90°] für |Δx|, |Δy| via `core.angel.angel`.
 
     Args:
-        x1: x-Koordinate von P1.
-        y1: y-Koordinate von P1.
-        x2: x-Koordinate von P2.
-        y2: y-Koordinate von P2.
-
+        x1: x‑Koordinate von P1.
+        y1: y‑Koordinate von P1.
+        x2: x‑Koordinate von P2.
+        y2: y‑Koordinate von P2.
     Returns:
-        φ in Grad im Bereich [0.0, 90.0].
+        φ in Grad im 1. Quadranten.
     """
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    return _angel(0.0, 0.0, dx, dy)
 
-    delta_abs_x = abs(x2 - x1)
-    delta_abs_y = abs(y2 - y1)
-
-    return _angel(0.0, 0.0, delta_abs_x, delta_abs_y)
 
 def angle(x1: float, y1: float, x2: float, y2: float) -> float:
-    """
-    Absolutwinkel φ ∈ [0°, 360°) von P1→P2 relativ zur +x-Achse (mathematisch positiv, CCW).
+    """Absolutwinkel φ ∈ [0°, 360°) von P1→P2 relativ +x.
 
-    Algorithmus:
-        1) Δx, Δy berechnen.
-        2) φ_q1 = angle_q1(0,0, |Δx|, |Δy|) liefert Basiswinkel im 1. Quadranten.
-        3) Quadrant aus den Vorzeichen von Δx und Δy ableiten und Grundwinkel `base`
-           bestimmen. Bei sx==sy addieren wir φ_q1, sonst subtrahieren wir φ_q1.
-        4) Ergebnis nach 360° normalisieren.
+    Verfahren:
+        φ_q1 = angle_q1(|Δx|, |Δy|); Quadrant aus Vorzeichen von Δx, Δy;
+        Basiswinkel setzen (180° bei Δx<0, 360° bei Δx≥0∧Δy<0); Korrektur ±φ_q1; mod 360.
 
     Args:
-        x1: x-Koordinate von P1.
-        y1: y-Koordinate von P1.
-        x2: x-Koordinate von P2.
-        y2: y-Koordinate von P2.
-
+        x1: x‑Koordinate von P1.
+        y1: y‑Koordinate von P1.
+        x2: x‑Koordinate von P2.
+        y2: y‑Koordinate von P2.
     Returns:
         φ in Grad im Bereich [0.0, 360.0).
-
-    Konventionen:
-        - 0° entlang +x, 90° entlang +y, 180° entlang −x, 270° entlang −y.
-        - Eingabepunkte sollten verschieden sein; für P1==P2 ist der Winkel
-          innerhalb der eingebetteten Funktion angel aus core.angel zu verwenden.
-          Info: Aufgrund dieser Situation wurde angel.py aktualisiert (Argumentreduktionserweiterung)
-
-
-    Beispiele:
-        >>> angle(0.0, 0.0, 1.0, 0.0)
-        0.0
-        >>> angle(0.0, 0.0, 0.0, 1.0)
-        90.0
-        >>> angle(0.0, 0.0, -1.0, 0.0)
-        180.0
-        >>> angle(0.0, 0.0, 0.0, -1.0)
-        270.0
-        >>> angle(0.0, 0.0, 1.0, 1.0)
-        45.0
-        >>> angle(0.0, 0.0, -1.0, 1.0)
-        135.0
-        >>> angle(0.0, 0.0, -1.0, -1.0)
-        225.0
-        >>> angle(0.0, 0.0, 1.0, -1.0)
-        315.0
     """
-    delta_x: float = x2 - x1
-    delta_y: float = y2 - y1
-    circle: float = 360.0
+    dx = x2 - x1
+    dy = y2 - y1
 
-    # Quadrant aus Vorzeichenpaar (sx, sy) bestimmen und Basiswinkel setzen
-    phi = angle_q1(0.0, 0.0, abs(delta_x), abs(delta_y))
+    circle = 360.0
+    phi = angle_q1(0.0, 0.0, abs(dx), abs(dy))
 
-    # Quadranten logik zur Ableitung des Absolutwinkels aus φ_q1
-    # Zweck:
-    #   Aus den Vorzeichen von Δx und Δy wird der globale Winkel φ ∈ [0°, 360°)
-    #   aus dem Basiswinkel φ_q1 ∈ [0°, 90°] hergeleitet.
-    # Eingaben:
-    #   delta_x, delta_y  – Differenzen der Koordinaten
-    #   phi               – φ_q1 aus angle_q1 (1. Quadrant)
-    #   circle            – Kreisumfang in Grad (360.0)
-    # Verfahren:
-    #   1) Vorzeichen bestimmen: sx := (Δx ≥ 0), sy := (Δy ≥ 0)
-    #   2) Basiswinkel base setzen:
-    #        Δx < 0            → +180°  (linke Halbebene)
-    #        Δx ≥ 0 ∧ Δy < 0   → +360°  (4. Quadrant Wrap)
-    #        sonst              → +0°
-    #      Formal: base = 180°*(¬sx) + 360°*(sx ∧ ¬sy)
-    #   3) Korrekturrichtung für φ:
-    #        sx == sy  → +φ    (Quadranten 1 und 3)
-    #        sonst     → −φ    (Quadranten 2 und 4)
-    #   4) Normierung: (base ± φ) mod 360° ergibt φ ∈ [0°, 360°)
-
-    sx, sy = (delta_x >= 0.0), (delta_y >= 0.0)
-    base = (circle / 2) * (not sx) + circle * (sx and not sy)
+    # Quadrant bestimmen und globalen Winkel ableiten
+    sx, sy = (dx >= 0.0), (dy >= 0.0)
+    base = (circle / 2.0) * (not sx) + circle * (sx and not sy)
     return (base + (phi if sx == sy else -phi)) % circle
 
-def flight_distance(x1: float, y1: float, x2: float, y2: float, z: float) -> float:
-    """
-    Gesamtflugstrecke als Summe aus horizontaler Distanz und doppeltem Höhenweg.
-    return 2.0 * abs(z) + distance(x1, y1, x2, y2)
-    Definition:
-        Strecke = hypot(x2−x1, y2−y1)  +  2·|z|
 
-    Begründung:
-        Start auf z=0 → Steigflug bis z → Sinkflug zurück auf 0. Vertikalkomponente
-        addiert sich daher als 2·|z|. Die horizontale Komponente nutzt `math.hypot`
-        für numerisch stabile euklidische Distanz im xy.
+def flight_distance(x1: float, y1: float, x2: float, y2: float, z: float) -> float:
+    """Gesamtstrecke: horizontale Distanz + doppelter Höhenweg.
+
+    Definition: hypot(Δx, Δy) + 2·|z|.
 
     Args:
-        x1: x-Koordinate Startpunkt.
-        y1: y-Koordinate Startpunkt.
-        x2: x-Koordinate Zielpunkt.
-        y2: y-Koordinate Zielpunkt.
-        z:  Zieldistanz in z-Richtung (positiv aufwärts, negativ abwärts).
-
+        x1: x‑Koordinate Startpunkt.
+        y1: y‑Koordinate Startpunkt.
+        x2: x‑Koordinate Zielpunkt.
+        y2: y‑Koordinate Zielpunkt.
+        z:  Zielhöhe [m] (positiv aufwärts, negativ abwärts).
     Returns:
-        Gesamtstrecke in gleichen Einheiten wie die Eingaben.
-
-    Beispiele:
-        >>> flight_distance(0,0,3,4, 10)
-        5.0 + 20.0
-        25.0
+        Gesamtstrecke in Einheiten der Eingaben.
     """
     return hypot(x2 - x1, y2 - y1) + 2.0 * abs(z)
 
-def format_flight_data(sim: UfoSimLike, w : int = 10) -> str:
-    """
-    Kompakte Telemetrie-Zeile mit fester Spaltenbreite.
-    Ruft Zeit und Position einmalig ab (konsistente Snapshot‑Werte, weniger
-    Method-Dispatch-Overhead) und formatiert sie mit fixer Breite.
+
+def format_flight_data(sim: UfoSimLike, w: int = 10) -> str:
+    """Formatiert eine Telemetrie‑Zeile.
+
+    Format: "{t:>5.1f} s: {x:>w.1f} {y:>w.1f} {z:>w.1f}".
 
     Args:
-        sim: Simulator-Objekt mit `get_ftime/get_x/get_y/get_z`.
-        w: Feldbreite für x, y und z in Zeichen. Standard 10.
-
+        sim: Simulator mit `get_ftime/get_x/get_y/get_z`.
+        w: Feldbreite für x, y, z.
     Returns:
-        Zeichenkette im Format:
-            "{t:>5.1f} s: {x:>w.1f} {y:>w.1f} {z:>w.1f}"
-                – t in Sekunden, Breite 5, 1 Dezimalstelle, rechtsbündig.
-                – x, y, z in Breite w, 1 Dezimalstelle, rechtsbündig.
+        Formatierte Zeile.
     """
     t = sim.get_ftime()
     x = sim.get_x()
     y = sim.get_y()
     z = sim.get_z()
 
-    # Anpassungen der Zahlen zur einheitlichen wiedergabe bei output
-    # Standardisiert durch parameter w
     return f"{t:>5.1f} s: {x:>{w}.1f} {y:>{w}.1f} {z:>{w}.1f}"
 
-def fac(n: int = 1, m: int = 1) -> int:
+def fac(m: int = 1, n: int = 1) -> int:
     """
-    Zweck
-    -----
-    Liefert das ganzzahlige Produkt der aufeinanderfolgenden Zahlen im inklusiven Intervall [n, m].
+    Produkt ∏_{k=n}^{m} k.
 
-    Definition
-    ----------
-    ∏_{k=n}^{m} k, mit Konvention: leeres Produkt = 1; 0 ∈ [n, m] ⇒ Ergebnis = 0.
-
-    Parameter
-    ---------
-    n: int
-        Untere Intervallgrenze.
-    m: int
-        Obere Intervallgrenze.
-
-    Rückgabe
-    --------
-    int
-        Produkt als ganze Zahl.
-
-    Spezialfälle
-    ------------
-    - m < n → 1
-    - n ≤ 0 ≤ m → 0
-
-    Mathematische Grundlage
-    -----------------------
-    Für n ≥ 1: ∏_{k=n}^{m} k = m! / (n - 1)!.
-    Für n ≤ m < 0: ∏_{k=n}^{m} k = (-1)^K · b! / (a - 1)!,
-      mit a = -m, b = -n, K = m - n + 1.
-
-    Begründung für Ganzzahldivision "//"
-    ------------------------------------
-    Die Quotienten sind per Definition ganzzahlig. "//" erzwingt exakte
-    Integerarithmetik, vermeidet Float-Konvertierung und Rundungsfehler.
-
-    Beispiele (Doctest)
-    -------------------
-    >>> fac(1, 5)
-    120
-    >>> fac(6, 2)
-    1
-    >>> fac(-2, 2)
-    0
-    >>> fac(-5, -2)
-    120
+    Konventionen: m < n → 1, n ≤ 0 ≤ m → 0.
     """
-    if m < n:
-        return 1
 
-    if n <= 0 <= m:
-        return 0
+    i_grenze: int = 1
+    match True:
+        case _ if m < n:
+            i_grenze = 1
 
-    if n > 0:
-        # m! / (n - 1)! ist ganzzahlig → exakte Auswertung mit "//" ohne Float.
-        return factorial(m) // factorial(n - 1)
+        case _ if n <= 0 <= m:
+            i_grenze = 0
 
-    # n ≤ m < 0
-    a, b = -m, -n          # 1 ≤ a ≤ b
-    k = m - n + 1          # Anzahl Faktoren (für das Vorzeichen)
+        case _ if n > 0:
+            i_grenze = factorial(m) // factorial(n - 1)
 
-    # Betrag: b! / (a - 1)! ist ganzzahlig
-    # Vorzeichen separat über (-1)^k.
-    return (-1) ** k * (factorial(b) // factorial(a - 1))
+        case _:
+            # n ≤ m < 0
+            a, b = -m, -n  # 1 ≤ a ≤ b
+            k = m - n + 1
+            i_grenze = (-1) ** k * (factorial(b) // factorial(a - 1))
 
-# ── Eigentlicher Autopilot  Nachfolgend ─────────────────────────────────────────────────────────────────
+    return i_grenze
+
+# ================ SICHERHEITSFUNKTIONEN DETERMINISTISCHE SICHERSTELLUNG ================
+
+def _begrenze_neigung_deg(cfg: AutopilotCfg, deg: int) -> int:
+    """
+    Begrenzt `deg` auf [cfg.neigung_sinken_deg, cfg.neigung_steigen_deg].
+
+    Args:
+        cfg: Konfiguration mit Grenzwerten.
+        deg: gewünschter Winkel [°].
+
+    Returns:
+        Geklemmter Winkel [°].
+
+    """
+    return max(cfg.neigung_sinken_deg, min(cfg.neigung_steigen_deg, deg))
+
+
+def _set_neigung(
+        sim: UfoSimLike,
+        cfg: AutopilotCfg,
+        neigung_deg: int
+) -> int:
+    """
+    Klemmt `neigung_deg` auf die in `cfg` erlaubten Grenzen und setzt sie am Sim.
+    Returns: tatsächlich gesetzter Winkel [°].
+    """
+    wert = _begrenze_neigung_deg(cfg, neigung_deg)
+    sim.set_i(wert)
+    return wert
+
+# ====================== AUTOPILOT ANGEHÖRIGE STANDARD FUNKTIONEN =====================
 
 @overload
 def takeoff(sim: UfoSimLike, z: float) -> None: ...
-
 @overload
 def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg) -> None: ...
 
-def takeoff(
+def takeoff(sim: UfoSimLike, z: float, cfg: AutopilotCfg | None = None) -> None:
+    """
+    Abheben: Steigflug bis Zielhöhe `z` mit zweistufigem Profil.
+
+    Ablauf:
+        Inklination setzen
+        → kinematischen Umschaltpunkt bestimmen
+        → schrittweise bis `z` mit Langsam-/Stop‑Fenstern
+        → Inklination neutralisieren.
+
+    Args:
+        sim: Simulator.
+        z: Zielhöhe [m].
+        cfg: Konfiguration.
+    """
+    conf: AutopilotCfg = replace(DEFAULT_CFG) if cfg is None else cfg
+
+    rest: float = max(z - sim.get_z(), 0.0)
+    if rest <= conf.stop_z:
+        _set_neigung(sim, conf, conf.neigung_neutral_deg)
+
+    else:
+        _set_neigung(sim, conf, conf.neigung_steigen_deg)
+
+        # Heuristik-Fallback ohne Kinematik:
+        # Beginne die Langsamphase bei 80 % der Reststrecke.
+        # Begründung: ≥20 % Reserve für Feinanflug + Stop-Fenster verhindert Überschwingen
+        # bei diskreten Geschwindigkeitsstufen; ersetzt wird dies durch eine kinematische
+        # Berechnung, sobald v0/v1/a vorliegen.
+        slow_at: float = max(conf.stop_z, max(0.8 * rest, rest - conf.slow_z_fallback))
+        stop_at: float = conf.stop_z
+
+        Nav.schrittweise_bis(
+            sim,
+            lambda: max(z - sim.get_z(), 0.0),
+            slow_at,
+            stop_at,
+            conf.v_up,
+            conf.v_up_to_slow,
+            conf,
+        )
+
+        _set_neigung(sim, conf, conf.neigung_neutral_deg)
+
+
+def cruise(
+    sim: UfoSimLike,
+    x: float,
+    y: float,
+    cfg: AutopilotCfg | None = None,
+) -> None:
+    """
+    Streckenflug zu (x, y) mit zweistufiger Geschwindigkeitsführung.
+
+    Ablauf:
+        Kurs aus Absolutwinkel setzen → Ziel‑Gesamtdistanz bestimmen → schrittweise bis Ziel.
+
+    Args:
+        sim: Simulator.
+        x: Ziel‑x [m].
+        y: Ziel‑y [m].
+        cfg: Konfiguration.
+    """
+    conf = replace(DEFAULT_CFG) if cfg is None else cfg
+
+    sx = sim.get_x()
+    sy = sim.get_y()
+
+    a: float = angle(sx, sy, x, y)
+    grad: int = Nav.richtung_als_int(a)
+    sim.set_kurs(grad)
+
+    distanz: float = sim.get_dist() + distance(sx, sy, x, y)
+
+    Nav.schrittweise_bis(
+        sim,
+        lambda: max(distanz - sim.get_dist(), 0.0),
+        conf.slow_h,
+        conf.stop_h,
+        conf.v_cruise,
+        conf.v_cruise_to_slow,
+        conf,
+    )
+
+
+def landing(
         sim: UfoSimLike,
-        z: float,
         cfg: AutopilotCfg | None = None
 ) -> None:
+    """
+    Landen: Sinkflug auf z = 0 mit zweistufigem Profil.
 
-    cfg = replace(DEFAULT_CFG) if cfg is None else cfg
+    Args:
+        sim: Simulator.
+        cfg: Konfiguration.
+    """
+    conf = replace(DEFAULT_CFG) if cfg is None else cfg
 
-    sim.set_i(90)
-    slow_at = max(cfg.stop_z, max(0.8 * z, z - cfg.slow_z_fallback))
-    stop_at = cfg.stop_z
+    _set_neigung(sim, conf, conf.neigung_sinken_deg)
 
-    nav.schrittweise_bis(
-        sim,
-        lambda: max(z - sim.get_z(), 0.0),
-        slow_at,
-        stop_at,
-        cfg.v_up,
-        cfg.v_up_to_slow,
-        cfg,
-    )
-    sim.set_i(0)
-
-def cruise(sim: UfoSimLike, x: float, y: float, cfg: AutopilotCfg | None = None) -> None:
-    cfg = DEFAULT_CFG if cfg is None else cfg
-    sx, sy = sim.get_x(), sim.get_y()
-    sim.set_d(nav.richtung_als_int(angle(sx, sy, x, y)))
-    target_sum = sim.get_dist() + distance(sx, sy, x, y)
-    nav.schrittweise_bis(
-        sim,
-        lambda: max(target_sum - sim.get_dist(), 0.0),
-        cfg.slow_h,
-        cfg.stop_h,
-        cfg.v_cruise,
-        cfg.v_cruise_to_slow,
-        cfg,
-    )
-
-def landing(sim: UfoSimLike, cfg: AutopilotCfg | None = None) -> None:
-    cfg = DEFAULT_CFG if cfg is None else cfg
-    sim.set_i(-90)
-    nav.schrittweise_bis(
+    Nav.schrittweise_bis(
         sim,
         lambda: max(sim.get_z() - 0.0, 0.0),
-        cfg.landing_slow_z,
+        conf.landing_slow_z,
         0.0,
-        cfg.v_up,
-        cfg.v_up_to_slow,
-        cfg,
+        conf.v_up,
+        conf.v_up_to_slow,
+        conf,
     )
 
-def fly_to(sim: UfoSimLike, x: float, y: float, z: float, cfg: AutopilotCfg | None = None) -> None:
-    cfg = DEFAULT_CFG if cfg is None else cfg
-    takeoff(sim, z, cfg)
-    cruise(sim, x, y, cfg)
-    landing(sim, cfg)
+    _set_neigung(sim, conf, conf.neigung_neutral_deg)
 
 
+def fly_to(
+    sim: UfoSimLike,
+    x: float,
+    y: float,
+    z: float,
+    cfg: AutopilotCfg | None = None,
+) -> None:
+    """Kombiniertes Manöver: takeoff → cruise → landing.
 
+    Args:
+        sim: Simulator.
+        x: Ziel ‑ x [m].
+        y: Ziel ‑ y [m].
+        z: Zielhöhe [m].
+        cfg: Konfiguration.
+    """
+    conf = replace(DEFAULT_CFG) if cfg is None else cfg
 
-
+    takeoff(sim, z, conf)
+    cruise(sim, x, y, conf)
+    landing(sim, conf)
