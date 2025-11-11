@@ -5,6 +5,42 @@ Format: **X.XX.XXX.XX**
 
 ---
 
+## [2.00.002.01] – 2025-11-11
+### Docs
+- Einheiten vereinheitlicht ([m], [s], [°], [km/h]). Projekt-README zu Headless-Start ergänzt.
+
+### Submodule
+- `ufo v2.00.002.01`
+- `angel v4.00.001.01`
+- `thi-general-utils v1.01.000.01`
+
+## [2.00.002.00] – 2025-11-11
+### Added
+- Headless-Ausführung als Workaround für macOS/Tk: `UFO_HEADLESS=1`.
+
+### Changed
+- Konsistente Fallback-Imports für Utilities (`util.evaluation` ↔ `system.util`).
+
+## [2.00.001.00] – 2025-11-11
+### Fixed
+- `ImportError: attempted relative import with no known parent package` in `ufo` durch `cli:main` und konsistente Paketstruktur behoben.
+- `ModuleNotFoundError: profile.h_profil` durch korrekten Paketpfad `core.profile.h_profil` behoben.
+
+## [2.00.000.00] – 2025-11-11
+### Added
+- Neues Subprojekt `ufo` integriert. CLI-Entry-Point `ufo` via `src/cli.py` (`[project.scripts] ufo = "cli:main"`).
+
+### Changed
+- BREAKING: Umstellung auf Namespace-Pakete (PEP 420) für alle Submodule (`src/core` ohne `__init__.py`).
+- Setuptools-Konfiguration vereinheitlicht:
+  - `[tool.setuptools] package-dir = {"" = "src"}`
+  - `[tool.setuptools.packages.find] where=["src"], include=["core*"], namespaces=true`
+- Paket-relative Importe korrigiert:
+  - `from .ufosim3_2_9q import UfoSim`
+  - `from .profile.h_profil import HProfil as Nav`
+
+---
+
 ## [1.02.001.03] – 2025-10-28
 ### Changed
 - Migration auf Python 3.13  

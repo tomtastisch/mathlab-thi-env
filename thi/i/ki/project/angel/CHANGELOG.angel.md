@@ -12,6 +12,26 @@ Kategorien:
 
 ---
 
+## [4.00.001.01] – 2025-11-11
+### Docs
+- Modul- und Funktions-Docstrings nachgeführt; Beispiele und Einheiten ([°]) vereinheitlicht.
+
+## [4.00.001.00] – 2025-11-11
+### Changed
+- Fallback-Imports für Utils robust implementiert: `util.evaluation` ↔ `system.util`.
+- Packaging-Metadaten harmonisiert (Distribution `thi-angel`, Importpfad `core.angel`).
+
+## [4.00.000.00] – 2025-11-11
+### Changed
+- BREAKING: Migration auf Namespace-Paket (PEP 420). Modul liegt unter `core.angel` statt `angel`.
+- Setuptools-Discovery vereinheitlicht:
+  - `[tool.setuptools] package-dir = {"" = "src"}`  
+  - `[tool.setuptools.packages.find] where = ["src"], include = ["core*"], namespaces = true`
+
+### Fixed
+- Paket-relative Importe konsolidiert.
+
+
 ## [3.03.000.01] – 2025-11-10
 ### Added
 - Öffentliche Functions-API `angel(x1: float, y1: float, x2: float, y2: float, genauigkeit: int = 14) -> float`
