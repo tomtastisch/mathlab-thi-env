@@ -1,3 +1,4 @@
+set -euo pipefail
 # 1) Zum Repo
 REPO="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Projects/PyCharmProjects/mathlab-thi-env"
 cd "$REPO" || { echo "Repo nicht gefunden"; exit 1; }
@@ -17,13 +18,29 @@ python -m pip install -e "thi/i/ki/project/ufo"
 # 5) Sichtprüfung
 python - <<'PY'
 import importlib.util as u
-print("util:", bool(u.find_spec("util")),
-      "dtypes:", bool(u.find_spec("dtypes")),
-      "core.ufo_main:", bool(u.find_spec("core.ufo_main")))
+
+def check(name: str) -> None:
+    spec = u.find_spec(name)
+    print(f"{name}: {bool(spec)}", end="")
+    if spec:
+        try:
+            mod = __import__(name, fromlist=["__file__"])
+            print(f" -> {getattr(mod, '__file__', spec.origin)}")
+        except Exception as e:
+            print(f" (import error: {e.__class__.__name__}: {e})")
+    else:
+        print()
+
+for mod in ("util", "util.evaluation", "dtypes", "core.ufo_main"):
+    check(mod)
 PY
 
 # 6) Start (headless, um macOS/Tk zu umgehen)
 export UFO_HEADLESS=1
+
+# Bevorzugt: Entry-Point verwenden (funktioniert bereits)
 ufo
-# alternativ:
-python -m core.ufo_main
+
+# Optional: Modulstart mit garantiertem PYTHONPATH
+# export PYTHONPATH="$REPO/thi/i/ki/general/system/src:$REPO/thi/i/ki/project/ufo/src:${PYTHONPATH:-}"
+# python -m core.ufo_main

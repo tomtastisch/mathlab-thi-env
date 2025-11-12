@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from util.geometry import GeometryUtil
 from dataclasses import replace
-from math import hypot, factorial
+from math import hypot
 from typing import overload, final
 
 from core.angel import angel as _angel
@@ -130,23 +130,7 @@ def fac(m: int = 1, n: int = 1) -> int:
     """
 
     i_grenze: int = 1
-    match True:
-        case _ if m < n:
-            i_grenze = 1
-
-        case _ if n <= 0 <= m:
-            i_grenze = 0
-
-        case _ if n > 0:
-            i_grenze = factorial(m) // factorial(n - 1)
-
-        case _:
-            # n ≤ m < 0
-            a, b = -m, -n  # 1 ≤ a ≤ b
-            k = m - n + 1
-            i_grenze = (-1) ** k * (factorial(b) // factorial(a - 1))
-
-    return i_grenze
+    return MathFunctions.fac(m, n)
 
 # ================ SICHERHEITSFUNKTIONEN DETERMINISTISCHE SICHERSTELLUNG ================
 
